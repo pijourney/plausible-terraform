@@ -3,6 +3,9 @@ terraform {
     vultr = {
       source = "vultr/vultr"
     }
+    random = {
+      source = "hashicorp/random"
+    }
   }
 }
 
@@ -13,6 +16,11 @@ resource "vultr_ssh_key" "plausible_ssh_key" {
   name = "plausible-ssh-key"
   ssh_key = var.ssh_key
 }
+resource "random_password" "password" {
+  length           = 64
+  special          = true
+  override_special = "_%@"
+}
 resource "vultr_instance" "plausible_instance" {
     plan              =       var.vultr_plan
     region            =       var.vultr_region
@@ -22,7 +30,7 @@ resource "vultr_instance" "plausible_instance" {
     hostname          =       var.domain_name
     tags              =       ["plausible"]
     ddos_protection   =       false
-    enable_ipv6       =       true
+    enable_ipv6       =       false
     ssh_key_ids       =       [vultr_ssh_key.plausible_ssh_key.id] 
     user_data = <<-EOF
     #!/bin/bash
@@ -35,7 +43,7 @@ resource "vultr_instance" "plausible_instance" {
     cd plausible
     ## edit plausible-conf.env
     sed -i 's/BASE_URL=replace-me/BASE_URL=https:\/\/${var.domain_name}/g' plausible-conf.env
-    sed -i "s/SECRET_KEY_BASE=replace-me/SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')/g" plausible-conf.env
+    sed -i "s/SECRET_KEY_BASE=replace-me/SECRET_KEY_BASE=${random_password.password.result}/g" plausible-conf.env
 
     ## change docker-compose.yml
     sed -i 's/- 8000:8000/- 127.0.0.1:8000:8000/g' docker-compose.yml
